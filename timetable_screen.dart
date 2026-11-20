@@ -37,7 +37,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
   ];
   // Compact layout: the 6 day columns share the screen width (no sideways scrolling).
   static const double _timeColWidth = 38;
-  static const double _rowHeight = 50; // height of one period, margins included
+  static const double _minRowHeight = 44; // smallest height of one period, margins included
   static const double _cellMargin = 1.5;
   static const double _headerHeight = 30;
 
@@ -204,10 +204,24 @@ class _TimetableScreenState extends State<TimetableScreen> {
         const pad = 8.0;
         // width of one day cell so that time column + 6 days fill the screen exactly
         final cellWidth = (constraints.maxWidth - 2 * pad - _timeColWidth) / 6 - 2 * _cellMargin;
+        // The 9 periods share the full height of the page: no empty space under the table.
+        final free = constraints.maxHeight.isFinite
+            ? constraints.maxHeight - 2 * pad - (_headerHeight + 2 * _cellMargin)
+            : 0.0;
+        final rowHeight = (free / kPeriodTimes.length).clamp(_minRowHeight, 200.0).toDouble();
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(pad),
-          child: Column(
+        // Pinch to zoom (1x to 4x) and drag to move around, so the last period (9) and
+        // Saturday are always reachable, even when zoomed in.
+        return InteractiveViewer(
+          constrained: false,
+          minScale: 1,
+          maxScale: 4,
+          boundaryMargin: const EdgeInsets.only(bottom: 120),
+          child: Container(
+            width: constraints.maxWidth,
+            constraints: BoxConstraints(minHeight: constraints.maxHeight.isFinite ? constraints.maxHeight : 0),
+            padding: const EdgeInsets.all(pad),
+            child: Column(
             children: [
               // Day headers
               Row(
@@ -249,7 +263,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                       for (var slot = 0; slot < kPeriodTimes.length; slot++)
                         SizedBox(
                           width: _timeColWidth,
-                          height: _rowHeight,
+                          height: rowHeight,
                           child: Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -272,20 +286,21 @@ class _TimetableScreenState extends State<TimetableScreen> {
                   for (var d = 1; d <= 6; d++)
                     Column(
                       children: [
-                        for (final block in _blocksFor(d)) _blockWidget(d, block, cellWidth),
+                        for (final block in _blocksFor(d)) _blockWidget(d, block, cellWidth, rowHeight),
                       ],
                     ),
                 ],
               ),
             ],
           ),
+          ),
         );
       },
     );
   }
 
-  Widget _blockWidget(int day, _Block block, double cellWidth) {
-    final height = block.length * _rowHeight - 2 * _cellMargin;
+  Widget _blockWidget(int day, _Block block, double cellWidth, double rowHeight) {
+    final height = block.length * rowHeight - 2 * _cellMargin;
 
     if (block.isEmpty) {
       return GestureDetector(
